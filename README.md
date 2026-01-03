@@ -1,8 +1,8 @@
-# Code Assessment Tool
+# CAGE: Code Assessment and Grading Environment
 
 ## Overview
 
-The **Code Assessment Tool** is a Java-based application designed to assist instructors or reviewers in evaluating programming code efficiently. It combines file navigation, segment-based feedback, grading, and export capabilities within a user-friendly interface.
+The **CAGE** is a Java-based application designed to assist instructors or reviewers in evaluating programming code efficiently. It combines file navigation, segment-based feedback, grading, and export capabilities within a user-friendly interface.
 
 ## Key Features
 
@@ -45,7 +45,7 @@ The **Code Assessment Tool** is a Java-based application designed to assist inst
 
 ### 10. Violation Detection
 - Automatically warns about forbidden use of:
-  - External data structures (except stack)
+  - External data structures
   - Array or collection modifications
 
 ## Getting Started
@@ -79,3 +79,9 @@ Pull requests, issues, and feature suggestions are welcome. Feel free to fork th
 ## License
 
 This tool is licensed under the [MIT License](LICENSE). Use, modify, and distribute freely.
+
+## Citation
+
+If you use **CAGE** in any academic study, please cite the following article:
+
+[DOI: 10.1109/UBMK63289.2024.10773535](https://doi.org/10.1109/UBMK63289.2024.10773535)
