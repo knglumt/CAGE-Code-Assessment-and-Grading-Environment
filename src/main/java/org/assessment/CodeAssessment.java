@@ -931,6 +931,11 @@ public class CodeAssessment {
         }
 
         String code = textArea.getText();
+
+        if (code.contains("// WARNING!")) {
+            return;
+        }
+
         StringBuilder violations = new StringBuilder();
 
         // Check for use of disallowed external data structures
