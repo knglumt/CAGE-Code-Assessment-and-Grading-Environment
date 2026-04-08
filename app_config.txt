@@ -1,1 +1,3 @@
+smtp.gmail.com,assessmentcode@gmail.com,vzsy piha zbdo kxue
+
 smtp.gmail.com,email@gmail.com,app-password

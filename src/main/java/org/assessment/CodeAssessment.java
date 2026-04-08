@@ -1,4 +1,3 @@
-
 import org.assessment.codesplitter.CodeSplitter;
 import org.assessment.codesplitter.LineCalculator;
 
@@ -15,6 +14,7 @@ import java.net.URI;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.nio.charset.StandardCharsets;
@@ -137,6 +137,8 @@ public class CodeAssessment {
         JButton previousButton = new JButton("<< Previous");
         JButton exportCSVButton = new JButton("Export CSV");
         JButton mailButton = new JButton("Send Mails");
+        JButton auditButton = new JButton("Check Segments");
+
 
         commentsTree = new JTree();
         commentsTree.setVisible(false);
@@ -154,6 +156,7 @@ public class CodeAssessment {
         leftPanel.add(openButton);
         leftPanel.add(previousButton);
         leftPanel.add(saveAndOpenButton);
+        leftPanel.add(auditButton);
         leftPanel.add(exportCSVButton);
         leftPanel.add(mailButton);
         leftPanel.add(fileNameLabel);
@@ -245,6 +248,9 @@ public class CodeAssessment {
                 openPreviousFileInFolder();
             }
         });
+
+        auditButton.addActionListener(e -> showIncompleteGradingFiles());
+
 
         textArea.addMouseListener(new MouseAdapter() {
             @Override
@@ -360,22 +366,102 @@ public class CodeAssessment {
         frame.setVisible(true);
     }
 
+    private List<String> listFilesWithIncompleteOrInvalidGrading() {
+        List<String> badFiles = new ArrayList<>();
+
+        if (currentFile == null || commentCount < 0) return badFiles;
+
+        File folder = currentFile.getParentFile();
+        File[] files = folder.listFiles(getAllFileTypesFilter());
+        if (files == null) return badFiles;
+
+        Pattern validGradePattern = Pattern.compile("@grade\\s+\\d+");
+
+        for (File f : files) {
+            try {
+                if (!f.isFile()) continue;
+                if (refCodeFile != null && f.getAbsolutePath().equals(refCodeFile)) continue;
+
+                List<String> lines = Files.readAllLines(f.toPath());
+
+                int segmentCounter = 0;
+                boolean invalid = false;
+
+                for (String line : lines) {
+                    if (line.contains("ASSESSMENT")) segmentCounter++;
+
+                    if (line.contains("@grade")) {
+                        if (!validGradePattern.matcher(line).find()) {
+                            invalid = true; // empty or malformed grade
+                        }
+                    }
+                }
+
+                if (segmentCounter != commentCount) invalid = true;
+
+                if (invalid) badFiles.add(f.getName());
+
+            } catch (Exception e) {
+                badFiles.add(f.getName() + " (unreadable)");
+            }
+        }
+        return badFiles;
+    }
+
+
+
+    private void showIncompleteGradingFiles() {
+        List<String> bad = listFilesWithIncompleteOrInvalidGrading();
+
+        if (bad.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "All files are fully graded ✔");
+            return;
+        }
+
+        JTextArea area = new JTextArea(String.join("\n", bad));
+        area.setEditable(false);
+        area.setFont(new Font("Consolas", Font.PLAIN, 12));
+
+        JScrollPane pane = new JScrollPane(area);
+        pane.setPreferredSize(new Dimension(450, 400));
+
+        JOptionPane.showMessageDialog(frame, pane,
+                "Incomplete / Invalid Grading (" + bad.size() + ")", JOptionPane.ERROR_MESSAGE);
+    }
+
+
+
     private void sendMail() {
 
-        String subject = JOptionPane.showInputDialog(null, "Enter the exam name:", "Email Subject", JOptionPane.QUESTION_MESSAGE );
-        if (subject != null && !subject.trim().isEmpty()) {
-            int response = JOptionPane.showConfirmDialog(null,
-                    "Are you sure to email assessment details to all students?", "Confirmation", JOptionPane.YES_NO_OPTION);
-            if (response == JOptionPane.YES_OPTION) {
+        String subject = JOptionPane.showInputDialog(null, "Enter the exam name:", "Email Subject", JOptionPane.QUESTION_MESSAGE);
+        if (subject == null || subject.trim().isEmpty()) return;
+
+        int response = JOptionPane.showConfirmDialog(null,
+                "Are you sure to email assessment details to all students?", "Confirmation", JOptionPane.YES_NO_OPTION);
+        if (response != JOptionPane.YES_OPTION) return;
+
+         final JDialog sendingDialog = new JDialog(frame, "Sending Emails...", true);
+        sendingDialog.setLayout(new BorderLayout());
+        sendingDialog.add(new JLabel("Sending emails, please wait...", SwingConstants.CENTER), BorderLayout.CENTER);
+        sendingDialog.setSize(300, 120);
+        sendingDialog.setLocationRelativeTo(frame);
+
+        new Thread(() -> {
+            try {
                 EmailSender program = new EmailSender(
                         "student_mails.txt",
                         defaultFolder.getPath(),
                         "app_config.txt"
                 );
                 program.run(subject);
+            } finally {
+                SwingUtilities.invokeLater(sendingDialog::dispose);
             }
-        }
+        }).start();
+
+        sendingDialog.setVisible(true); // blocks until disposed
     }
+
 
     /**
      * Opens a file selected by the user and displays its content in the JTextArea.

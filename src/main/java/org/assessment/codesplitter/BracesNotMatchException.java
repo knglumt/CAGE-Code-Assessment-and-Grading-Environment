@@ -3,17 +3,23 @@ package org.assessment.codesplitter;
 import java.util.ArrayList;
 
 public class BracesNotMatchException extends Exception {
-    private ArrayList<String> lines;
+
+    private final ArrayList<String> lines;
+
+    public BracesNotMatchException() {
+        this.lines = new ArrayList<>();
+    }
 
     public BracesNotMatchException(ArrayList<String> lines) {
         this.lines = lines;
     }
 
+    @Override
     public String toString() {
-        StringBuilder stringBuilder = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         for (String line : lines) {
-            stringBuilder.append(line).append("\n");
+            sb.append(line).append("\n");
         }
-        return "Braces Does not match: " + stringBuilder;
+        return "Braces do not match:\n" + sb;
     }
 }
