@@ -35,6 +35,8 @@ public class EmailSender {
 
         /**
          * Starts the process of reading student data, setting email configuration, and sending emails.
+         * Sends one combined email per student (student codes + reference codes) to stay within
+         * Gmail's sending limits. A 1500ms delay is applied between sends to avoid burst throttling.
          *
          * @param subject The subject line for the emails to be sent.
          */
@@ -48,12 +50,19 @@ public class EmailSender {
                         String email = student[1];
 
                         Map<String, StringBuilder> allFiles = scanAndConsolidate(studentId);
+
+                        Map<String, StringBuilder> studentFiles = new HashMap<>(allFiles);
                         Map<String, StringBuilder> refCodeFiles = new HashMap<>(allFiles);
-                        allFiles.keySet().removeIf(key -> key.toLowerCase().contains("refcode"));
+                        studentFiles.keySet().removeIf(key -> key.toLowerCase().contains("refcode"));
                         refCodeFiles.keySet().removeIf(key -> !key.toLowerCase().contains("refcode"));
 
-                        sendEmail(subject + "-Student Codes", studentId, email, allFiles, " ***STUDENT CODES***");
-                        sendEmail(subject + "-Reference Codes", "***INSTRUCTOR", email, refCodeFiles, " ***REFERENCE CODES***");
+                        sendCombinedEmail(subject, studentId, email, studentFiles, refCodeFiles);
+
+                        try {
+                                Thread.sleep(1500);
+                        } catch (InterruptedException ignored) {
+                                Thread.currentThread().interrupt();
+                        }
                 }
 
                 JOptionPane.showMessageDialog(null, mailCount + " emails have been sent!");
@@ -114,18 +123,21 @@ public class EmailSender {
         }
 
         /**
-         * Sends an email to a specified recipient with a set of files as the email body.
+         * Sends a single combined email to the student containing both student code files
+         * and reference code files in the same message body. This avoids sending two separate
+         * emails per student and helps stay within Gmail's daily send limits.
          *
-         * @param subject     The subject of the email.
-         * @param studentId   The student ID to include in the email body.
-         * @param email       The recipient's email address.
-         * @param files       The files to be included in the email body.
-         * @param description A description to prepend to the file contents in the email body.
+         * @param subject       The subject of the email.
+         * @param studentId     The student ID to include in the email body.
+         * @param email         The recipient's email address.
+         * @param studentFiles  Map of student code files (filename -> content).
+         * @param refFiles      Map of reference code files (filename -> content).
          */
-        private void sendEmail(String subject, String studentId, String email,
-                               Map<String, StringBuilder> files, String description) {
+        private void sendCombinedEmail(String subject, String studentId, String email,
+                                       Map<String, StringBuilder> studentFiles,
+                                       Map<String, StringBuilder> refFiles) {
 
-                if (files.isEmpty()) return;
+                if (studentFiles.isEmpty() && refFiles.isEmpty()) return;
 
                 try {
                         Message message = new MimeMessage(session);
@@ -133,14 +145,23 @@ public class EmailSender {
                         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(email));
                         message.setSubject(subject);
 
-                        StringBuilder body = new StringBuilder(studentId).append(description).append(":\n\n");
-                        files.forEach((fileName, content) -> body.append(fileName).append("\n").append(content).append("\n\n"));
+                        StringBuilder body = new StringBuilder(studentId).append(":\n\n");
+
+                        if (!studentFiles.isEmpty()) {
+                                body.append("***STUDENT CODES***\n\n");
+                                studentFiles.forEach((fileName, content) ->
+                                        body.append(fileName).append("\n").append(content).append("\n\n"));
+                        }
+
+                        if (!refFiles.isEmpty()) {
+                                body.append("***REFERENCE CODES***\n\n");
+                                refFiles.forEach((fileName, content) ->
+                                        body.append(fileName).append("\n").append(content).append("\n\n"));
+                        }
 
                         message.setContent(body.toString(), "text/plain; charset=UTF-8");
                         Transport.send(message);
-
-                        if (subject.toLowerCase().contains("student"))
-                                mailCount++;
+                        mailCount++;
 
                 } catch (Exception e) {
                         e.printStackTrace();
@@ -184,7 +205,6 @@ public class EmailSender {
                         return "Error reading file content.";
                 }
         }
-
 
         /**
          * Reads the email configuration from a file.

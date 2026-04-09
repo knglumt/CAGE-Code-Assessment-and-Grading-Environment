@@ -10,10 +10,6 @@ public class BracesNotMatchException extends Exception {
         this.lines = new ArrayList<>();
     }
 
-    /** Used when the offending lines are not available at the throw site. */
-    public BracesNotMatchException() {
-        this.lines = new ArrayList<>();
-    }
 
     public BracesNotMatchException(ArrayList<String> lines) {
         this.lines = lines;
