@@ -8,7 +8,6 @@ import javax.swing.*;
 
 /**
  * This class is designed to send emails to a list of students based on data provided through various files.
- * It reads student data, scans for relevant files, and sends emails with those files attached.
  */
 public class EmailSender {
 
@@ -18,36 +17,27 @@ public class EmailSender {
         private Session session;
         private String smtpUser;
         private int mailCount;
+        private final List<String[]> emailedStudents = new ArrayList<>();
 
-        /**
-         * Constructs an EmailSender with specified file paths for student data, folder containing relevant files,
-         * and email configuration.
-         *
-         * @param textFilePath    Path to the text file containing student data.
-         * @param folderPath      Path to the folder containing student and reference code files.
-         * @param emailConfigFile Path to the file containing email server configuration.
-         */
         public EmailSender(String textFilePath, String folderPath, String emailConfigFile) {
                 this.textFilePath = textFilePath;
                 this.folderPath = folderPath;
                 this.emailConfigFile = emailConfigFile;
         }
 
-        /**
-         * Starts the process of reading student data, setting email configuration, and sending emails.
-         * Sends one combined email per student (student codes + reference codes) to stay within
-         * Gmail's sending limits. A 1500ms delay is applied between sends to avoid burst throttling.
-         *
-         * @param subject The subject line for the emails to be sent.
-         */
         public void run(String subject) {
                 List<String[]> studentData = readStudentData();
                 setEmailConfig();
                 mailCount = 0;
+                emailedStudents.clear();
 
                 for (String[] student : studentData) {
-                        String studentId = student[0];
-                        String email = student[1];
+                        if (student.length < 2) {
+                                System.err.println("Skipping malformed student entry.");
+                                continue;
+                        }
+                        String studentId = student[0].trim();
+                        String email = student[1].trim();
 
                         Map<String, StringBuilder> allFiles = scanAndConsolidate(studentId);
 
@@ -65,20 +55,43 @@ public class EmailSender {
                         }
                 }
 
-                JOptionPane.showMessageDialog(null, mailCount + " emails have been sent!");
+                // Build scrollable summary dialog listing all emailed students
+                StringBuilder summary = new StringBuilder();
+                summary.append(String.format("%-20s %s%n", "Student ID", "Email"));
+                summary.append("-".repeat(50)).append("\n");
+                for (String[] s : emailedStudents) {
+                        summary.append(String.format("%-20s %s%n", s[0], s[1]));
+                }
+
+                JTextArea textArea = new JTextArea(summary.toString());
+                textArea.setEditable(false);
+                textArea.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12));
+                textArea.setCaretPosition(0);
+
+                JScrollPane scrollPane = new JScrollPane(textArea);
+                scrollPane.setPreferredSize(new java.awt.Dimension(500, 300));
+
+                JOptionPane.showMessageDialog(
+                        null,
+                        scrollPane,
+                        mailCount + " emails have been sent!",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
         }
 
-        /**
-         * Reads student data from a specified file and returns a list of student IDs and emails.
-         *
-         * @return A list of string arrays, each containing a student ID and email.
-         */
+        // FIX: skip blank and malformed lines
         private List<String[]> readStudentData() {
                 List<String[]> studentData = new ArrayList<>();
                 try (BufferedReader reader = new BufferedReader(new FileReader(textFilePath))) {
                         String line;
                         while ((line = reader.readLine()) != null) {
-                                studentData.add(line.split("\\s*[;,]\\s*"));
+                                if (line.isBlank()) continue;
+                                String[] parts = line.split("\\s*[;,]\\s*");
+                                if (parts.length < 2) {
+                                        System.err.println("Skipping malformed line: " + line);
+                                        continue;
+                                }
+                                studentData.add(parts);
                         }
                 } catch (IOException e) {
                         e.printStackTrace();
@@ -86,25 +99,12 @@ public class EmailSender {
                 return studentData;
         }
 
-        /**
-         * Scans a specified folder recursively and consolidates files that contain either the student ID or "refcode".
-         *
-         * @param studentId The student ID to search for within file names.
-         * @return A map containing file names as keys and their content as values.
-         */
         private Map<String, StringBuilder> scanAndConsolidate(String studentId) {
                 Map<String, StringBuilder> consolidatedFiles = new HashMap<>();
                 scanFolderRecursively(new File(folderPath), studentId, consolidatedFiles);
                 return consolidatedFiles;
         }
 
-        /**
-         * Helper method to recursively scan a folder and accumulate files relevant to a specific student ID or refcode.
-         *
-         * @param folder The folder to scan.
-         * @param studentId The student ID to filter files by.
-         * @param consolidatedFiles A map to accumulate file names and content.
-         */
         private void scanFolderRecursively(File folder, String studentId, Map<String, StringBuilder> consolidatedFiles) {
                 File[] files = folder.listFiles();
                 if (files == null) return;
@@ -122,22 +122,14 @@ public class EmailSender {
                 }
         }
 
-        /**
-         * Sends a single combined email to the student containing both student code files
-         * and reference code files in the same message body. This avoids sending two separate
-         * emails per student and helps stay within Gmail's daily send limits.
-         *
-         * @param subject       The subject of the email.
-         * @param studentId     The student ID to include in the email body.
-         * @param email         The recipient's email address.
-         * @param studentFiles  Map of student code files (filename -> content).
-         * @param refFiles      Map of reference code files (filename -> content).
-         */
         private void sendCombinedEmail(String subject, String studentId, String email,
                                        Map<String, StringBuilder> studentFiles,
                                        Map<String, StringBuilder> refFiles) {
 
-                if (studentFiles.isEmpty() && refFiles.isEmpty()) return;
+                if (studentFiles.isEmpty() && refFiles.isEmpty()) {
+                        System.err.println("No files found for student: " + studentId);
+                        return;
+                }
 
                 try {
                         Message message = new MimeMessage(session);
@@ -162,15 +154,14 @@ public class EmailSender {
                         message.setContent(body.toString(), "text/plain; charset=UTF-8");
                         Transport.send(message);
                         mailCount++;
+                        // FIX: record successfully emailed student
+                        emailedStudents.add(new String[]{studentId, email});
 
                 } catch (Exception e) {
                         e.printStackTrace();
                 }
         }
 
-        /**
-         * Configures the email session using details from the email configuration file.
-         */
         private void setEmailConfig() {
                 String[] emailConfig = readEmailConfig();
 
@@ -191,12 +182,6 @@ public class EmailSender {
                 smtpUser = emailConfig[1];
         }
 
-        /**
-         * Reads the content of a file and returns it as a string.
-         *
-         * @param filePath The path to the file to read.
-         * @return The content of the file as a string.
-         */
         private String readFileContent(String filePath) {
                 try {
                         byte[] bytes = Files.readAllBytes(Paths.get(filePath));
@@ -206,14 +191,11 @@ public class EmailSender {
                 }
         }
 
-        /**
-         * Reads the email configuration from a file.
-         *
-         * @return An array of strings containing the SMTP host, user, and password.
-         */
         private String[] readEmailConfig() {
                 try (BufferedReader reader = new BufferedReader(new FileReader(emailConfigFile))) {
-                        return reader.readLine().split(",");
+                        String[] config = reader.readLine().split(",");
+                        if (config.length < 3) throw new RuntimeException("Email config must have host, user, password.");
+                        return config;
                 } catch (IOException e) {
                         throw new RuntimeException("Invalid email configuration file.");
                 }
