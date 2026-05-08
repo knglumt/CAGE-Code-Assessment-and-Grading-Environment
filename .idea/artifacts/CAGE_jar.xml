@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="CAGE:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/CAGE_jar</output-path>
+    <root id="archive" name="CAGE.jar">
+      <element id="module-output" name="CAGE" />
+      <element id="extracted-dir" path="D:/Backup/Users/umitk/IdeaProjects/CodeAssessment/lib/jakarta.mail-2.0.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="D:/Backup/Users/umitk/IdeaProjects/CodeAssessment/lib/jakarta.activation-2.0.1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
