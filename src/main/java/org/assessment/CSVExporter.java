@@ -87,7 +87,9 @@ public class CSVExporter {
      */
     private static String getStudentId(String fileName) {
         int dotIndex = fileName.lastIndexOf('.');
-        return (dotIndex != -1) ? fileName.substring(0, dotIndex) : fileName;
+        String nameWithoutExt = (dotIndex != -1) ? fileName.substring(0, dotIndex) : fileName;
+        int underscoreIndex = nameWithoutExt.indexOf('_');
+        return (underscoreIndex != -1) ? nameWithoutExt.substring(0, underscoreIndex) : nameWithoutExt;
     }
 
     /**
